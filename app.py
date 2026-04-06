@@ -1,216 +1,208 @@
-# CIDPL FULL PROJECT ERP v7.0
+# CIDPL ADVANCED PROJECT ERP v9.0
 # PROJECT: RAW WATER RESERVOIR, ANUPPUR (PHASE-I)
 # CONTRACTOR: BHAIYALAL INFRASTRUCTURE PVT. LTD. & CIDPL
 # AUTHOR: UPENDRA SINGH | SITE: ANUPPUR 3X800 MW (ADANI POWER LTD)
 
 import streamlit as st
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 import io
 import re
+import numpy as np
 
 # ---------------- CONFIG ----------------
-st.set_page_config(page_title="CIDPL SECURE ERP", layout="wide", page_icon="🏗️")
+st.set_page_config(page_title="CIDPL ADVANCED ERP", layout="wide", page_icon="🏗️")
 
-# Custom CSS for Professional Branding
+# Colorful Styling for Dashboard & UI
 st.markdown("""
     <style>
-    .main-header { font-size: 28px; font-weight: bold; color: #1E3A8A; text-align: center; margin-bottom: 0px; }
-    .sub-header { font-size: 16px; color: #4B5563; text-align: center; margin-bottom: 20px; }
+    .main-header { font-size: 30px; font-weight: bold; color: #1E3A8A; text-align: center; margin-bottom: 0px; }
+    .sub-header { font-size: 16px; color: #4B5563; text-align: center; margin-bottom: 25px; }
+    .card-green { background: linear-gradient(135deg, #10B981 0%, #059669 100%); color: white; padding: 15px; border-radius: 10px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    .card-blue { background: linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%); color: white; padding: 15px; border-radius: 10px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    .card-amber { background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%); color: white; padding: 15px; border-radius: 10px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    .card-red { background: linear-gradient(135deg, #EF4444 0%, #B91C1C 100%); color: white; padding: 15px; border-radius: 10px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
     .footer { text-align: center; font-size: 12px; color: #9CA3AF; margin-top: 50px; border-top: 1px solid #E5E7EB; padding-top: 20px; }
-    .login-box { max-width: 400px; margin: auto; padding: 40px; border: 1px solid #E5E7EB; border-radius: 10px; background: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-    .stTabs [aria-selected="true"] { background-color: #1E3A8A !important; color: white !important; }
-    .metric-container { background: white; border: 1px solid #E5E7EB; padding: 10px; border-radius: 8px; text-align: center; }
+    .login-box { max-width: 400px; margin: auto; padding: 40px; border: 1px solid #E5E7EB; border-radius: 10px; background: white; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+    .stTabs [aria-selected="true"] { background-color: #1E3A8A !important; color: white !important; font-weight: bold; }
     </style>
 """, unsafe_allow_html=True)
 
 # ---------------- AUTHENTICATION ----------------
-if 'logged_in' not in st.session_state:
-    st.session_state.logged_in = False
+if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 
 def login_page():
-    st.markdown("<br><br><br>", unsafe_allow_html=True)
-    with st.container():
-        st.markdown('<div class="login-box">', unsafe_allow_html=True)
-        st.header("🔐 CIDPL ERP LOGIN")
-        st.write("Project: Anuppur Reservoir Phase-I")
-        pwd = st.text_input("Enter Access Password", type="password")
-        if st.button("Login", use_container_width=True):
-            if pwd == "Welcome@123":
-                st.session_state.logged_in = True
-                st.rerun()
-            else:
-                st.error("Incorrect password. Please try again.")
-        st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown("<br><br>", unsafe_allow_html=True)
+    st.markdown('<div class="login-box">', unsafe_allow_html=True)
+    st.header("🔐 CIDPL ERP v9.0")
+    pwd = st.text_input("Project Access Password", type="password")
+    if st.button("Login", use_container_width=True):
+        if pwd == "Welcome@123": st.session_state.logged_in = True; st.rerun()
+        else: st.error("Access Denied.")
+    st.markdown('</div>', unsafe_allow_html=True)
 
-if not st.session_state.logged_in:
-    login_page()
-    st.stop()
+if not st.session_state.logged_in: login_page(); st.stop()
 
 # ---------------- INITIALIZE STATE ----------------
-# --- 1. BOQ MASTER DATA (58.09 Cr Project Scopes & Rates) ---
+# 1. BOQ Master
 if 'boq_master' not in st.session_state:
-    # Pre-loading project-specific BOQ from user data
     st.session_state.boq_master = pd.DataFrame([
-        {"Code": "10", "Item": "Stripping (top soil)", "Total Qty": 250000.0, "UoM": "Sqm", "Unit Rate": 15.0},
-        {"Code": "30a", "Item": "Earthwork excavation soil (0-5m)", "Total Qty": 535500.0, "UoM": "CuM", "Unit Rate": 120.0},
-        {"Code": "40a", "Item": "Weathered rock excavation (0-5m)", "Total Qty": 428400.0, "UoM": "CuM", "Unit Rate": 250.0},
-        {"Code": "40b", "Item": "Weathered rock excavation (5-10m)", "Total Qty": 642600.0, "UoM": "CuM", "Unit Rate": 310.0},
-        {"Code": "70a", "Item": "Hard rock - Blasting (0-5m)", "Total Qty": 292740.0, "UoM": "CuM", "Unit Rate": 650.0},
-        {"Code": "80", "Item": "Transportation of Earth/Rock", "Total Qty": 2850000.0, "UoM": "CuM", "Unit Rate": 85.0},
-        {"Code": "90", "Item": "Embankment Layer Filling", "Total Qty": 473333.0, "UoM": "CuM", "Unit Rate": 140.0},
-        {"Code": "120", "Item": "1000 micron HDPE Sheet", "Total Qty": 444803.0, "UoM": "Sqm", "Unit Rate": 320.0},
-        {"Code": "130", "Item": "Cement concrete liner (75mm)", "Total Qty": 163000.0, "UoM": "Sqm", "Unit Rate": 450.0}
+        {"Code": "10", "Item": "Stripping (top soil)", "Total Qty": 125000.0, "UoM": "Sqm", "Unit Rate": 15.0},
+        {"Code": "20", "Item": "Excavation (All types)", "Total Qty": 1700000.0, "UoM": "CuM", "Unit Rate": 125.0},
+        {"Code": "90", "Item": "Embankment Layer Filling", "Total Qty": 473333.0, "UoM": "CuM", "Unit Rate": 145.0},
+        {"Code": "120", "Item": "1000 micron HDPE Sheet", "Total Qty": 444803.0, "UoM": "Sqm", "Unit Rate": 350.0}
     ])
 
-# --- 2. BOQ PROGRESS LOG (Pre-loaded with DPR 05.04.2026) ---
-if 'boq_progress' not in st.session_state:
-    st.session_state.boq_progress = [
-        {"Date": "2026-04-04", "Code": "10", "Item": "Stripping (top soil)", "Done Qty": 63204.0, "Remark": "PREV. CUMULATIVE"},
-        {"Date": "2026-04-04", "Code": "30a", "Item": "Earthwork excavation soil (0-5m)", "Done Qty": 100274.0, "Remark": "PREV. CUMULATIVE"},
-        {"Date": "2026-04-05", "Code": "10", "Item": "Stripping (top soil)", "Done Qty": 0.0, "Remark": "DPR Entry"},
-        {"Date": "2026-04-05", "Code": "30a", "Item": "Earthwork excavation soil (0-5m)", "Done Qty": 4466.0, "Remark": "DPR Entry"}
-    ]
-
-# --- 3. DIESEL, MANPOWER, SNAPSHOT ---
-if 'manpower_log' not in st.session_state:
-    st.session_state.manpower_log = [{"Date": "2026-04-05", "Staff": 15, "Operators": 20, "Skilled": 2, "Unskilled": 4, "Security": 2}]
-
-if 'site_snapshot' not in st.session_state:
-    st.session_state.site_snapshot = [{"Date": "2026-04-05", "Excavator": 6, "Dumper": 20, "Road Roller": 2, "Diesel Tanker": 1, "Water Tanker": 4}]
-
-if 'machine_master' not in st.session_state:
-    st.session_state.machine_master = pd.DataFrame([
-        {"MACHINE NO": "EX KOBEELCO 380", "TYPE": "EXCAVATOR", "AVG": 22.5},
-        {"MACHINE NO": "EX KOMATSU 300", "TYPE": "EXCAVATOR", "AVG": 20.0},
-        {"MACHINE NO": "HYVA 2218", "TYPE": "TIPPER", "AVG": 2.3}
-    ])
-
+# 2. Project Logs
+if 'boq_progress' not in st.session_state: st.session_state.boq_progress = []
 if 'consumption_log' not in st.session_state: st.session_state.consumption_log = []
 if 'receipt_log' not in st.session_state: st.session_state.receipt_log = []
-if 'opening_stock' not in st.session_state: st.session_state.opening_stock = 10000.0
+if 'manpower_log' not in st.session_state: st.session_state.manpower_log = []
+if 'opening_stock' not in st.session_state: st.session_state.opening_stock = 15000.0
+
+# 3. Trip Chart Module (SR 1-10 HYVAs)
+if 'trip_log' not in st.session_state:
+    # 10 Vehicles, each with columns: SR, Tipper, Driver, Start Reading, Closed Reading, HMR, Trips (1-42), Total Trips
+    cols = ["SR", "Tipper", "Driver", "Start Reading", "Closed Reading", "HMR"] + [f"T-{i}" for i in range(1, 43)] + ["Total"]
+    data = []
+    vehicles = ["HYVA 2218", "HYVA 2217", "HYVA 2649", "HYVA 3560", "HYVA 3511", "HYVA 1134", "HYVA 3101", "HYVA 3102", "HYVA 3103", "HYVA 9034"]
+    for i, v in enumerate(vehicles):
+        row = {c: 0 for c in cols}
+        row["SR"] = i + 1; row["Tipper"] = v; row["Driver"] = "Operator"; row["HMR"] = 0.0; row["Total"] = 0
+        data.append(row)
+    st.session_state.trip_log = pd.DataFrame(data)
 
 # ---------------- CORE LOGIC ----------------
-def calculate_status():
+def get_boq_status():
     status = st.session_state.boq_master.copy()
-    if not st.session_state.boq_progress:
-        status["Done Qty"] = 0.0
+    if not st.session_state.boq_progress: status["Done Qty"] = 0.0
     else:
         agg = pd.DataFrame(st.session_state.boq_progress).groupby("Code")["Done Qty"].sum().reset_index()
         status = pd.merge(status, agg, on="Code", how="left").fillna(0)
-    
-    status["Done Value"] = (status["Done Qty"] * status["Unit Rate"])
-    status["Total Value"] = (status["Total Qty"] * status["Unit Rate"])
-    status["% Progress"] = (status["Done Qty"] / status["Total Qty"] * 100).round(2)
+    status["Value"] = status["Done Qty"] * status["Unit Rate"]
+    status["%"] = (status["Done Qty"] / status["Total Qty"] * 100).round(2)
     return status
 
-def get_stock():
-    in_fuel = sum(r['Qty (L)'] for r in st.session_state.receipt_log)
-    out_fuel = sum(c['FILL HSD'] for c in st.session_state.consumption_log)
-    return st.session_state.opening_stock + in_fuel - out_fuel
+def get_fuel_stock():
+    total_in = sum(r['Qty (L)'] for r in st.session_state.receipt_log)
+    total_out = sum(c['FILL HSD'] for c in st.session_state.consumption_log)
+    return st.session_state.opening_stock + total_in - total_out
 
 # ---------------- BRANDING HEADER ----------------
-st.markdown('<div class="main-header">CIDPL SECURE PROJECT ERP v7.0</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-header">BHAIYALAL INFRASTRUCTURE PVT. LTD. | ANUPPUR RESERVOIR PROJECT (58.09 CR.)</div>', unsafe_allow_html=True)
+st.markdown('<div class="main-header">CIDPL-BHAIYALAL ADVANCED ERP v9.0</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-header">RAW WATER RESERVOIR PROJECT | ANUPPUR 3X800 MW | ADANI POWER LTD</div>', unsafe_allow_html=True)
 
-# ---------------- SIDEBAR ----------------
+# ---------------- SIDEBAR: REVENUE & REPORTS ----------------
 with st.sidebar:
-    st.header("👤 User: Admin")
-    status_df = calculate_status()
-    total_val = status_df["Total Value"].sum()
-    billed_val = status_df["Done Value"].sum()
-    
-    st.metric("Total Project Value", f"Rs. {total_val/10000000:.2f} Cr")
-    st.metric("Total Certified (Billing)", f"Rs. {billed_val/100000:.2f} L")
-    st.progress(float(billed_val/total_val) if total_val > 0 else 0.0)
+    st.header("🏢 Site Revenue Center")
+    status_df = get_boq_status()
+    billed = status_df["Value"].sum()
+    st.markdown(f'<div class="card-blue"><b>Total Project Billing</b><br>Rs. {billed/100000:.2f} Lakhs</div>', unsafe_allow_html=True)
     
     st.write("---")
-    st.metric("Current Diesel Stock", f"{get_stock():,.2f} L")
+    st.header("📋 High-Signal Reports")
+    report_type = st.radio("Select Period", ["Daily", "Weekly", "Monthly"])
     
-    if st.button("🚪 Logout"):
-        st.session_state.logged_in = False
-        st.rerun()
+    if st.button("📊 Generate Excel (Professional)"):
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            # Sheet 1: DPR Dashboard
+            status_df.to_excel(writer, sheet_name='DPR_Summary', index=False)
+            # Sheet 2: Trip Chart
+            st.session_state.trip_log.to_excel(writer, sheet_name='Trip_Chart', index=False)
+            # Formatting (XlsxWriter)
+            workbook = writer.book; header_fmt = workbook.add_format({'bold': True, 'bg_color': '#1E3A8A', 'font_color': 'white'})
+            for worksheet in writer.sheets.values():
+                for col_num, value in enumerate(status_df.columns.values):
+                    worksheet.write(0, col_num, value, header_fmt)
+        st.download_button(label=f"💾 Download {report_type} Report", data=output.getvalue(), file_name=f"CIDPL_Report_{report_type}_{datetime.now().strftime('%Y%m%d')}.xlsx")
 
-# ---------------- TABS ----------------
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 Financial Dashboard", "🚧 Work Progress", "👷 Manpower", "🚜 Diesel & Machine", "🛠️ Database"])
+    st.write("---")
+    if st.button("🚪 Logout"): st.session_state.logged_in = False; st.rerun()
+
+# ---------------- MAIN TABS ----------------
+tabs = st.tabs(["📊 Dashboard", "🚧 Progress Log", "🚛 Trip Chart (OCR)", "🚜 Diesel & Machine", "🛠️ Database"])
 
 # --- TAB 1: DASHBOARD ---
-with tab1:
-    col1, col2 = st.columns(2)
-    with col1:
-        st.subheader("Financial Progress Status")
-        st.dataframe(status_df[["Code", "Item", "Total Qty", "Done Qty", "Done Value", "% Progress"]], use_container_width=True)
-    with col2:
-        st.subheader("Billing Trends (Work Done Value)")
-        st.bar_chart(status_df.set_index("Item")["Done Value"])
+with tabs[0]:
+    c1, c2, c3, c4 = st.columns(4)
+    with c1: st.markdown(f'<div class="card-green"><b>Physical Progress</b><br>{status_df["%"].mean():.2f}%</div>', unsafe_allow_html=True)
+    with c2: st.markdown(f'<div class="card-blue"><b>Billing Value</b><br>Rs. {billed/100000:.2f}L</div>', unsafe_allow_html=True)
+    with c3: st.markdown(f'<div class="card-amber"><b>HSD Stock</b><br>{get_fuel_stock():,.0f} L</div>', unsafe_allow_html=True)
+    with c4: st.markdown(f'<div class="card-red"><b>Active Trips</b><br>{st.session_state.trip_log["Total"].sum()} Total</div>', unsafe_allow_html=True)
     
     st.write("---")
-    st.subheader("Daily Snapshot")
-    c1, c2, c3 = st.columns(3)
-    with c1: st.metric("Today's Manpower", sum([m['Staff']+m['Operators']+m['Skilled']+m['Unskilled'] for m in st.session_state.manpower_log[-1:]]))
-    with c2: st.metric("Today's Excavation (CuM)", sum([p['Done Qty'] for p in st.session_state.boq_progress if p['Date'] == datetime.now().strftime('%Y-%m-%d') and p['Code'] == '30a']))
-    with c3: st.metric("Project Health", "On Track ✅", delta="Stable")
+    st.subheader("Bill of Quantities (BOQ) Summary Status")
+    st.dataframe(status_df, use_container_width=True, hide_index=True)
+    
+    st.write("---")
+    st.subheader("Physical vs Financial Growth (Trending)")
+    st.line_chart(status_df.set_index("Item")["Value"])
 
 # --- TAB 2: PROGRESS LOG ---
-with tab2:
-    st.subheader("Daily Progress Report (DPR)")
+with tabs[1]:
+    st.subheader("Daily Work Progress Report")
+    with st.form("dpr_form"):
+        col1, col2, col3 = st.columns(3)
+        p_item = col1.selectbox("BOQ Item", st.session_state.boq_master["Item"].tolist())
+        p_qty = col2.number_input("Today's Quantity", min_value=0.0)
+        p_rem = col3.text_input("Remarks / Chainage")
+        if st.form_submit_button("Save Work Progress"):
+            code = st.session_state.boq_master[st.session_state.boq_master["Item"] == p_item]["Code"].values[0]
+            st.session_state.boq_progress.append({"Date": datetime.now().strftime("%Y-%m-%d"), "Code": code, "Item": p_item, "Done Qty": p_qty, "Remark": p_rem})
+            st.success("Work Logged Successfully!"); st.rerun()
+
+# --- TAB 3: TRIP CHART (OCR) ---
+with tabs[2]:
+    st.subheader("Supervisor Trip Chart & OCR Simulator")
+    
+    col_up1, col_up2 = st.columns([1, 2])
+    with col_up1:
+        st.write("📸 **Upload Trip Chart Picture**")
+        trip_file = st.file_uploader("Upload Image (OCR)", type=["png", "jpg", "jpeg"])
+        if st.button("🤖 Simulate AI-OCR Read"):
+            if trip_file:
+                # Simulated OCR Reading 5 trips for each HYVA
+                for i in range(len(st.session_state.trip_log)):
+                    st.session_state.trip_log.loc[i, "T-1":"T-5"] = np.random.randint(1, 3, size=5)
+                    st.session_state.trip_log.loc[i, "Total"] = st.session_state.trip_log.loc[i, "T-1":"T-42"].sum()
+                st.success("AI parsed 50 trips from the chart image!"); st.rerun()
+            else: st.warning("Please upload a picture first.")
+
+    st.write("---")
+    st.write("**TRIP CHART MATRIX (Log 1-42 Trips)**")
+    edited_trips = st.data_editor(st.session_state.trip_log, use_container_width=True, num_rows="dynamic")
+    if st.button("💾 Save Trip Data"):
+        # Recalculate totals
+        for i in range(len(edited_trips)):
+            edited_trips.loc[i, "Total"] = edited_trips.loc[i, "T-1":"T-42"].sum()
+            edited_trips.loc[i, "HMR"] = float(edited_trips.loc[i, "Closed Reading"]) - float(edited_trips.loc[i, "Start Reading"])
+        st.session_state.trip_log = edited_trips; st.success("Trip Data Updated!"); st.rerun()
+
+# --- TAB 4: DIESEL & MACHINE ---
+with tabs[3]:
+    st.subheader("HSD Management Control")
+    st.metric("Current HSD Stock (Opening + Receipts - Issues)", f"{get_fuel_stock():,.2f} L")
+    st.write("---")
     c1, c2, c3 = st.columns(3)
-    with c1:
-        p_date = st.date_input("DATED", datetime.now())
-        p_item = st.selectbox("Select Item", st.session_state.boq_master["Item"].tolist())
-    with c2:
-        p_qty = st.number_input(f"Today's Work Quantity", min_value=0.0)
-        p_rate = st.session_state.boq_master[st.session_state.boq_master["Item"] == p_item]["Unit Rate"].values[0]
-        st.info(f"Unit Rate: Rs. {p_rate} | Work Value: Rs. {p_qty * p_rate:,.2f}")
-    with c3:
-        p_rem = st.text_input("Remarks", placeholder="Chainage / Location")
-    
-    if st.button("➕ Save Work Log", type="primary", use_container_width=True):
-        code = st.session_state.boq_master[st.session_state.boq_master["Item"] == p_item]["Code"].values[0]
-        st.session_state.boq_progress.append({"Date": p_date.strftime("%Y-%m-%d"), "Code": code, "Item": p_item, "Done Qty": p_qty, "Remark": p_rem})
-        st.success("Entry Saved!"); st.rerun()
-
-# --- TAB 3: MANPOWER ---
-with tab3:
-    st.subheader("Daily Manpower Tracking")
-    m1, m2, m3 = st.columns(3)
-    with m1: ms = st.number_input("Staff", 15); mo = st.number_input("Operators", 20)
-    with m2: mk = st.number_input("Skilled", 2); mu = st.number_input("Unskilled", 4)
-    with m3: my = st.number_input("Security", 2)
-    
-    if st.button("👷 Log Manpower", use_container_width=True):
-        st.session_state.manpower_log.append({"Date": datetime.now().strftime("%Y-%m-%d"), "Staff": ms, "Operators": mo, "Skilled": mk, "Unskilled": mu, "Security": my})
-        st.success("Manpower Data Logged!"); st.rerun()
-
-# --- TAB 4: DIESEL ---
-with tab4:
-    st.subheader("Machinery & Fuel Control")
-    d1, d2 = st.tabs(["Diesel Log", "Snapshot"])
-    with d1:
-        c1, c2 = st.columns(2)
-        with c1: dm_machine = st.selectbox("Machine NO", st.session_state.machine_master["MACHINE NO"].tolist())
-        with c2: dm_fill = st.number_input("FILL HSD (L)", min_value=0.0)
-        if st.button("➕ Save Fuel Issue"):
-            st.session_state.consumption_log.append({"Date": datetime.now().strftime("%Y-%m-%d"), "MACHINE NO": dm_machine, "FILL HSD": dm_fill})
-            st.success("HSD Logged!"); st.rerun()
+    dm_machine = c1.selectbox("Select Machine", ["EX KOBELCO 380", "HYVA 2218", "HYVA 2217", "BOLERO"])
+    dm_fill = c2.number_input("HSD Fill (L)", min_value=0.0)
+    if st.button("➕ Log Diesel Issue"):
+        st.session_state.consumption_log.append({"Date": datetime.now().strftime("%Y-%m-%d"), "MACHINE NO": dm_machine, "FILL HSD": dm_fill})
+        st.success("Diesel Logged!"); st.rerun()
 
 # --- TAB 5: DATABASE ---
-with tab5:
-    st.subheader("🛠️ Professional Master Setup")
-    d_boq, d_mm = st.tabs(["Financial BOQ", "Machine Master"])
-    with d_boq:
-        st.write("Configure Item Rates (for 58.09 Cr Project)")
-        e_boq = st.data_editor(st.session_state.boq_master, use_container_width=True, num_rows="dynamic")
-        if st.button("💾 Save Financial Master"): st.session_state.boq_master = e_boq; st.success("Master Updated!"); st.rerun()
-    with d_mm:
-        e_mm = st.data_editor(st.session_state.machine_master, use_container_width=True, num_rows="dynamic")
-        if st.button("💾 Save Machine Master"): st.session_state.machine_master = e_mm; st.success("Machines Updated!"); st.rerun()
+with tabs[4]:
+    st.subheader("🛠️ Professional Database Manager")
+    st.write("**Edit BOQ Scopes & Unit Rates**")
+    e_boq = st.data_editor(st.session_state.boq_master, use_container_width=True, num_rows="dynamic")
+    if st.button("💾 Save Master DB"): st.session_state.boq_master = e_boq; st.success("Database Saved!"); st.rerun()
 
 # ---------------- FOOTER ----------------
 st.markdown(f"""
     <div class="footer">
-        <b>CIDPL SECURE PROJECT ERP v7.0</b><br>
-        Bhaiyalal Infrastructure Pvt. Ltd. | Developed by: Upendra Singh<br>
-        Copyright © 2026 Anuppur Reservoir Project
+        <b>CIDPL FULL PROJECT ERP v9.0</b> | Adani Power Ltd (Anuppur Project)<br>
+        Developed by: <b>Upendra Singh</b> | Contact for Support: (Admin/Bhaiyalal Infra)<br>
+        Current System Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
     </div>
 """, unsafe_allow_html=True)
