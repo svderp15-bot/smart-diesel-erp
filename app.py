@@ -1,145 +1,202 @@
-# SMART DIESEL ERP (WEB VERSION)
-# Built for Streamlit & Render Deployment
+# CIDPL SMART DIESEL ERP (ADVANCED VERSION)
+# PROJECT: ANUPPUR 3X800 MW THERMAL POWER PROJECT (ADANI POWER LTD)
+# AUTHOR: UPENDRA SINGH | ORGANIZATION: CIDPL
 
 import streamlit as st
 import pandas as pd
 import os
 from datetime import datetime
+import io
 
 # ---------------- CONFIG ----------------
-st.set_page_config(page_title="SMART DIESEL ERP", layout="wide", page_icon="🚜")
+st.set_page_config(page_title="CIDPL DIESEL ERP", layout="wide", page_icon="🚜")
 
-DB_FILE = "machine_db.xlsx"
-DEFAULT_STOCK = 5000.0
+# Custom CSS for Professional Branding
+st.markdown("""
+    <style>
+    .main-header { font-size: 32px; font-weight: bold; color: #1E3A8A; text-align: center; margin-bottom: 0px; }
+    .sub-header { font-size: 18px; color: #4B5563; text-align: center; margin-bottom: 20px; }
+    .card { background-color: #F3F4F6; padding: 20px; border-radius: 10px; margin-bottom: 20px; border: 1px solid #E5E7EB; }
+    .metric-box { text-align: center; padding: 10px; border-radius: 5px; background: white; border: 1px solid #D1D5DB; }
+    .footer { text-align: center; font-size: 14px; color: #9CA3AF; margin-top: 50px; border-top: 1px solid #E5E7EB; padding-top: 20px; }
+    </style>
+""", unsafe_allow_html=True)
 
 # ---------------- INITIALIZE STATE ----------------
-if 'data' not in st.session_state:
-    st.session_state.data = []
+if 'consumption_log' not in st.session_state:
+    st.session_state.consumption_log = []
 
-if 'tank_stock' not in st.session_state:
-    st.session_state.tank_stock = DEFAULT_STOCK
+if 'receipt_log' not in st.session_state:
+    st.session_state.receipt_log = []
 
-# ---------------- DATABASE ----------------
-def load_db():
-    if os.path.exists(DB_FILE):
-        try:
-            return pd.read_excel(DB_FILE)
-        except:
-            return pd.DataFrame(columns=["Machine", "Last_Reading"])
-    else:
-        return pd.DataFrame(columns=["Machine", "Last_Reading"])
+if 'opening_stock' not in st.session_state:
+    st.session_state.opening_stock = 5000.0
 
-def update_db(machine, current):
-    df = load_db()
-    if machine in df["Machine"].values:
-        df.loc[df["Machine"] == machine, "Last_Reading"] = current
-    else:
-        new_row = pd.DataFrame([{"Machine": machine, "Last_Reading": current}])
-        df = pd.concat([df, new_row], ignore_index=True)
-    df.to_excel(DB_FILE, index=False)
+# ---------------- CORE LOGIC ----------------
+def get_last_reading(machine_name):
+    if not st.session_state.consumption_log:
+        return 0.0
+    df = pd.DataFrame(st.session_state.consumption_log)
+    machine_data = df[df["Machine"] == machine_name]
+    if not machine_data.empty:
+        return float(machine_data.iloc[-1]["CURR"])
+    return 0.0
 
-# ---------------- DATA & OPTIONS ----------------
-MACHINES = [
-    "EX KOBELCO 380", "EX KOMATSU 300", "EX XCMG 210", "EX TATA HITACHI 370",
-    "GRADER 4180D", "HAMM ROLLER", "HYVA 2218", "HYVA 2217", "HYVA 2649",
-    "HYVA 3560", "HYVA 3511", "HYVA 1134", "HYVA 3101", "HYVA 3102",
-    "HYVA 3103", "HYVA 9034", "CAMPER", "BOLERO", "DG 62.5 KVA",
-    "DOZER", "TRACTOR WT 9785", "TRACTOR WT 4125", "TRACTOR WT 3757"
-]
+def calculate_stock():
+    total_received = sum(r['Qty (L)'] for r in st.session_state.receipt_log)
+    total_issued = sum(c['CONS (L)'] for c in st.session_state.consumption_log)
+    return st.session_state.opening_stock + total_received - total_issued
 
-TYPES = ["EXCAVATOR", "TIPPER", "GRADER", "ROLLER", "DOZER", "LMV", "DG"]
+# ---------------- BRANDING HEADER ----------------
+st.markdown('<div class="main-header">CIDPL SMART DIESEL ERP</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-header">CLASSIC INFRASTRUCTURE PRIVATE LIMITED | ANUPPUR 3X800 MW THERMAL POWER PROJECT (ADANI POWER LTD)</div>', unsafe_allow_html=True)
 
-# ---------------- UI ----------------
-st.title("🚜 SMART DIESEL ERP SYSTEM")
-st.markdown("Designed for Construction Projects | *Developed for Web*")
-st.write("---")
-
-# Sidebar: Stock and Summary
+# ---------------- SIDEBAR ----------------
 with st.sidebar:
-    st.header("🏢 Site Summary")
-    st.metric("Current Tank Stock", f"{st.session_state.tank_stock:.2f} L")
+    st.header("📊 Site Statistics")
+    current_stock = calculate_stock()
+    st.metric("Current Tank Stock", f"{current_stock:,.2f} L")
     
     st.write("---")
+    st.subheader("⚙️ Settings")
+    st.session_state.opening_stock = st.number_input("Update Opening Stock (Initial)", value=float(st.session_state.opening_stock))
     
-    if st.button("Reset Stock (Testing Only)"):
-        st.session_state.tank_stock = DEFAULT_STOCK
+    if st.button("🗑️ Reset All Data", type="secondary"):
+        st.session_state.consumption_log = []
+        st.session_state.receipt_log = []
         st.rerun()
 
-    if st.button("Generate Download Link"):
-        if st.session_state.data:
-            df_final = pd.DataFrame(st.session_state.data)
-            filename = f"HSD_Report_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
-            df_final.to_excel(filename, index=False)
-            with open(filename, "rb") as file:
-                st.download_button(
-                    label="📥 Click to Download Excel",
-                    data=file,
-                    file_name=filename,
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
-        else:
-            st.warning("No data entries to export.")
+    st.write("---")
+    if st.button("📥 Export Full Report (Excel)"):
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            pd.DataFrame(st.session_state.consumption_log).to_excel(writer, sheet_name='Consumption', index=False)
+            pd.DataFrame(st.session_state.receipt_log).to_excel(writer, sheet_name='Receipts', index=False)
+        
+        st.download_button(
+            label="💾 Download Final Excel",
+            data=output.getvalue(),
+            file_name=f"CIDPL_Diesel_Report_{datetime.now().strftime('%Y%m%d')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
 
-# Main Input Section
-with st.container():
-    col1, col2 = st.columns(2)
+# ---------------- MAIN APP TABS ----------------
+tab1, tab2, tab3 = st.tabs(["🚜 Machine Consumption", "⛽ Diesel Receipts", "📋 Log Management"])
 
+# --- TAB 1: MACHINE CONSUMPTION ---
+with tab1:
+    st.subheader("Add Daily Machinery Issue Log")
+    
+    MACHINES = [
+        "EX KOBELCO 380", "EX KOMATSU 300", "EX XCMG 210", "EX TATA HITACHI 370",
+        "GRADER 4180D", "HAMM ROLLER", "HYVA 2218", "HYVA 2217", "HYVA 2649",
+        "HYVA 3560", "HYVA 3511", "HYVA 1134", "BOLERO", "DG 62.5 KVA", "DOZER"
+    ]
+    
+    col1, col2, col3 = st.columns(3)
+    
     with col1:
-        machine = st.selectbox("Select Machine", MACHINES)
-        mtype = st.selectbox("Type", TYPES)
-        avg = st.number_input("Average Consumption (L/H or L/KM)", min_value=0.0, step=0.1, format="%.2f")
+        date = st.date_input("Date", datetime.now())
+        machine = st.selectbox("Select Machinery", MACHINES)
+        avg = st.number_input("Average Consumption", min_value=0.0, step=0.1, key="cons_avg")
         
-        # Auto-fetch previous reading
-        db_df = load_db()
-        last_val = db_df.loc[db_df["Machine"] == machine, "Last_Reading"].values
-        prv = last_val[0] if len(last_val) > 0 else 0.0
-        
-        entry_prv = st.number_input("Previous Reading (PRV)", value=float(prv), step=0.01)
-
     with col2:
-        entry_curr = st.number_input("Current Reading (CURR)", min_value=0.0, step=1.0)
-        entry_fill = st.number_input("Diesel Fill (FILL) - Liters", min_value=0.0, step=1.0)
-        remark = st.text_input("Remarks", placeholder="Site location, shift, etc.")
+        last_rd = get_last_reading(machine)
+        prv = st.number_input("Previous Reading", value=last_rd, step=0.01)
+        curr = st.number_input("Current Reading", min_value=prv, step=0.01)
+        
+    with col3:
+        fill = st.number_input("Diesel Fill (L)", min_value=0.0, step=1.0)
+        remark = st.text_input("Remarks", placeholder="Site location/Shift")
 
-    # Calculations
-    hmr = entry_curr - entry_prv
+    hmr = curr - prv
     cons = hmr * avg
+    
+    st.markdown(f"**Calculated HMR:** `{hmr:.2f}` | **Theoretical Consumption:** `{cons:.2f} L` | **Actual Fill:** `{fill:.2f} L`")
 
-    st.info(f"💡 **Calculated HMR:** {hmr:.2f} | **Calculated Consumption:** {cons:.2f} L")
-
-    if st.button("➕ Add Entry to Log", use_container_width=True):
-        if entry_curr < entry_prv:
-            st.error("❌ Error: Current reading cannot be less than previous.")
-        elif entry_curr == 0 and entry_prv == 0:
-            st.error("❌ Please enter valid reading data.")
+    if st.button("➕ Save Consumption Entry", use_container_width=True, type="primary"):
+        if curr <= prv and hmr != 0:
+            st.error("Error: Current reading must be greater than previous.")
         else:
-            # Check Alert
-            expected = avg * hmr
-            if cons > expected * 1.2:
-                st.warning("⚠️ ALERT: High Diesel Consumption Detected!")
-            elif cons < expected * 0.5 and hmr > 0:
-                st.warning("⚠️ ALERT: Check Reading Data - Unusually Low Consumption.")
-
-            # Append data
-            row = {
-                "Machine": machine, "Type": mtype, "AVG": avg, 
-                "PRV": entry_prv, "CURR": entry_curr, "HMR": hmr, 
-                "CONS": cons, "FILL": entry_fill, "REMARK": remark
+            entry = {
+                "Date": date.strftime("%Y-%m-%d"),
+                "Machine": machine,
+                "AVG": avg,
+                "PRV": prv,
+                "CURR": curr,
+                "HMR": round(hmr, 2),
+                "CONS (L)": fill, # Logic: We use 'Fill' as the actual issue amount
+                "REMARK": remark,
+                "TIMESTAMP": datetime.now().strftime("%H:%M:%S")
             }
-            st.session_state.data.append(row)
-            
-            # Update DB and Stock
-            update_db(machine, entry_curr)
-            st.session_state.tank_stock = st.session_state.tank_stock + entry_fill - cons
-            
-            st.success(f"✅ Entry for {machine} added successfully!")
+            st.session_state.consumption_log.append(entry)
+            st.success(f"Entry saved for {machine}!")
             st.rerun()
 
-# ---------------- DISPLAY TABLE ----------------
-st.write("---")
-st.subheader("📋 Daily Log")
-if st.session_state.data:
-    df_display = pd.DataFrame(st.session_state.data)
-    st.dataframe(df_display, use_container_width=True)
-else:
-    st.info("No entries recorded for this session yet.")
+# --- TAB 2: DIESEL RECEIPTS ---
+with tab2:
+    st.subheader("Diesel Received (Incoming from Outside)")
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        r_date = st.date_input("Receipt Date", datetime.now())
+        challan = st.text_input("Challan No.")
+    with col2:
+        qty = st.number_input("Quantity Received (Liters)", min_value=0.0, step=10.0)
+        vendor = st.text_input("Vendor Name", "IOCL / BPCL")
+    with col3:
+        vehicle = st.text_input("Tanker Vehicle No.")
+        r_remark = st.text_input("Receipt Remarks")
+
+    if st.button("📥 Add Diesel Receipt", use_container_width=True):
+        if qty <= 0:
+            st.error("Please enter a valid quantity.")
+        else:
+            r_entry = {
+                "Date": r_date.strftime("%Y-%m-%d"),
+                "Challan": challan,
+                "Qty (L)": qty,
+                "Vendor": vendor,
+                "Tanker": vehicle,
+                "Remark": r_remark
+            }
+            st.session_state.receipt_log.append(r_entry)
+            st.success(f"Receipt of {qty}L added successfully!")
+            st.rerun()
+
+# --- TAB 3: LOG MANAGEMENT ---
+with tab3:
+    st.subheader("Manage Logs (Edit/Delete)")
+    
+    st.write("**Machinery Consumption Log**")
+    if st.session_state.consumption_log:
+        df_c = pd.DataFrame(st.session_state.consumption_log)
+        edited_c = st.data_editor(df_c, use_container_width=True, num_rows="dynamic")
+        if st.button("Save Changes to Consumption Log"):
+            st.session_state.consumption_log = edited_c.to_dict('records')
+            st.success("Log Updated!")
+            st.rerun()
+    else:
+        st.info("No consumption records yet.")
+
+    st.write("---")
+    st.write("**Diesel Receipt Log**")
+    if st.session_state.receipt_log:
+        df_r = pd.DataFrame(st.session_state.receipt_log)
+        edited_r = st.data_editor(df_r, use_container_width=True, num_rows="dynamic")
+        if st.button("Save Changes to Receipt Log"):
+            st.session_state.receipt_log = edited_r.to_dict('records')
+            st.success("Receipts Updated!")
+            st.rerun()
+    else:
+        st.info("No receipt records yet.")
+
+# ---------------- FOOTER ----------------
+st.markdown(f"""
+    <div class="footer">
+        <b>CIDPL SMART DIESEL ERP</b><br>
+        Developed by: <b>Upendra Singh</b><br>
+        Site: Anuppur 3x800 MW Thermal Power Project (Adani Power Ltd)<br>
+        Last Sync: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+    </div>
+""", unsafe_allow_html=True)
