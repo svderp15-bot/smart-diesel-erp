@@ -24,10 +24,18 @@ st.markdown("""
 
 # ---------------- INITIALIZE STATE ----------------
 if 'consumption_log' not in st.session_state:
-    st.session_state.consumption_log = []
+    # Adding Demo Data for CIDPL
+    st.session_state.consumption_log = [
+        {"Date": "2026-04-05", "Machine": "EX KOBELCO 380", "AVG": 25.0, "PRV": 1200.0, "CURR": 1210.0, "HMR": 10.0, "CONS (L)": 250.0, "REMARK": "Day Shift", "TIMESTAMP": "08:30:00"},
+        {"Date": "2026-04-05", "Machine": "HYVA 2218", "AVG": 2.5, "PRV": 5000.0, "CURR": 5050.0, "HMR": 50.0, "CONS (L)": 125.0, "REMARK": "Haulage Road", "TIMESTAMP": "09:15:00"},
+        {"Date": "2026-04-05", "Machine": "DG 62.5 KVA", "AVG": 8.0, "PRV": 450.0, "CURR": 455.0, "HMR": 5.0, "CONS (L)": 40.0, "REMARK": "Night Backup", "TIMESTAMP": "18:45:00"}
+    ]
 
 if 'receipt_log' not in st.session_state:
-    st.session_state.receipt_log = []
+    # Adding Demo Diesel Receipt
+    st.session_state.receipt_log = [
+        {"Date": "2026-04-04", "Challan": "CH-998877", "Qty (L)": 2000.0, "Vendor": "IOCL", "Tanker": "MP 18 GA 1234", "Remark": "Fresh Stock"}
+    ]
 
 if 'opening_stock' not in st.session_state:
     st.session_state.opening_stock = 5000.0
