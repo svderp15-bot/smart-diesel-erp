@@ -1,6 +1,6 @@
-# CIDPL FULL RESERVOIR ERP (PHASE-I)
+# CIDPL FULL RESERVOIR ERP (DPR-05.04.2026 EDITION)
 # PROJECT: Raw Water Reservoir, ANUPPUR (BHAIYALAL INFRASTRUCTURE PVT. LTD.)
-# AUTHOR: UPENDRA SINGH | CONTRACTOR: CIDPL & BHAIYALAL INFRA
+# AUTHOR: UPENDRA SINGH | SITE: ANUPPUR 3X800 MW (ADANI POWER LTD)
 
 import streamlit as st
 import pandas as pd
@@ -23,25 +23,42 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ---------------- INITIALIZE STATE ----------------
-# --- 1. BOQ MASTER DATA ---
+# --- 1. BOQ MASTER DATA (Updated Scopes) ---
 if 'boq_master' not in st.session_state:
     st.session_state.boq_master = pd.DataFrame([
-        {"Code": "10", "Item": "Stripping (top soil)", "Total Qty": 250000.0, "UoM": "Sqm", "Planned Target (Month)": 30000.0},
-        {"Code": "30a", "Item": "Earthwork excavation soil (0-5m)", "Total Qty": 535500.0, "UoM": "CuM", "Planned Target (Month)": 40000.0},
-        {"Code": "40a", "Item": "Weathered rock excavation (0-5m)", "Total Qty": 428400.0, "UoM": "CuM", "Planned Target (Month)": 20000.0},
-        {"Code": "40b", "Item": "Weathered rock excavation (5-10m)", "Total Qty": 642600.0, "UoM": "CuM", "Planned Target (Month)": 25000.0},
-        {"Code": "70a", "Item": "Hard rock - Blasting (0-5m)", "Total Qty": 292740.0, "UoM": "CuM", "Planned Target (Month)": 15000.0},
-        {"Code": "80", "Item": "Transportation of Earth/Rock", "Total Qty": 2850000.0, "UoM": "CuM", "Planned Target (Month)": 89000.0},
-        {"Code": "90", "Item": "Embankment filling", "Total Qty": 473333.0, "UoM": "CuM", "Planned Target (Month)": 32000.0},
-        {"Code": "120", "Item": "1000 micron HDPE Sheet", "Total Qty": 444803.0, "UoM": "Sqm", "Planned Target (Month)": 42000.0},
+        {"Code": "10", "Item": "Stripping (top soil)", "Total Qty": 125000.0, "UoM": "Sqm", "Planned Target (Month)": 30000.0},
+        {"Code": "20", "Item": "Excavation (All types)", "Total Qty": 1700000.0, "UoM": "CuM", "Planned Target (Month)": 150000.0},
+        {"Code": "90", "Item": "Embankment Layer Filling", "Total Qty": 473333.0, "UoM": "CuM", "Planned Target (Month)": 32000.0},
+        {"Code": "120", "Item": "1000 micron HDPE Sheet", "Total Qty": 444803.0, "Sqm": "Sqm", "Planned Target (Month)": 42000.0},
         {"Code": "130", "Item": "Cement concrete liner (75mm)", "Total Qty": 163000.0, "UoM": "Sqm", "Planned Target (Month)": 15000.0}
     ])
 
-# --- 2. BOQ PROGRESS LOG ---
+# --- 2. BOQ PROGRESS LOG (Pre-loaded with DPR 05.04.2026) ---
 if 'boq_progress' not in st.session_state:
-    st.session_state.boq_progress = []
+    st.session_state.boq_progress = [
+        # Cumulative Progress before 05.04.2026
+        {"Date": "2026-04-04", "Code": "10", "Item": "Stripping (top soil)", "Done Qty": 63204.0, "Remark": "PREV. CUMULATIVE"},
+        {"Date": "2026-04-04", "Code": "20", "Item": "Excavation (All types)", "Done Qty": 100274.0, "Remark": "PREV. CUMULATIVE"},
+        {"Date": "2026-04-04", "Code": "90", "Item": "Embankment Layer Filling", "Done Qty": 91693.0, "Remark": "PREV. CUMULATIVE"},
+        # Today's Work 05.04.2026
+        {"Date": "2026-04-05", "Code": "10", "Item": "Stripping (top soil)", "Done Qty": 0.0, "Remark": "DPR Entry"},
+        {"Date": "2026-04-05", "Code": "20", "Item": "Excavation (All types)", "Done Qty": 4466.0, "Remark": "DPR Entry"},
+        {"Date": "2026-04-05", "Code": "90", "Item": "Embankment Layer Filling", "Done Qty": 1406.0, "Remark": "DPR Entry"}
+    ]
 
-# --- 3. DIESEL & MACHINERY (Carried Forward) ---
+# --- 3. MANPOWER LOG ---
+if 'manpower_log' not in st.session_state:
+    st.session_state.manpower_log = [
+        {"Date": "2026-04-05", "Staff": 15, "Operators": 20, "Skilled": 2, "Unskilled": 4, "Security": 2}
+    ]
+
+# --- 4. SITE SNAPSHOT (Machinery Count) ---
+if 'site_snapshot' not in st.session_state:
+    st.session_state.site_snapshot = [
+        {"Date": "2026-04-05", "Excavator": 6, "Dumper": 20, "Road Roller": 2, "Diesel Tanker": 1, "Grader": 2, "Dozer": 2, "Drilling Machine": 5, "Water Tanker": 4, "DG": 1}
+    ]
+
+# --- 5. DIESEL & MACHINERY ---
 if 'machine_master' not in st.session_state:
     st.session_state.machine_master = pd.DataFrame([
         {"MACHINE NO": "EX KOBEELCO 380", "TYPE": "EXCAVATOR", "AVG": 22.5},
@@ -81,70 +98,108 @@ def calculate_diesel_stock():
     total_issued = sum(c['FILL HSD'] for c in st.session_state.consumption_log)
     return st.session_state.opening_stock + total_received - total_issued
 
+def to_excel(df_list, sheet_names):
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        for df, name in zip(df_list, sheet_names):
+            df.to_excel(writer, sheet_name=name, index=False)
+    return output.getvalue()
+
 # ---------------- BRANDING ----------------
-st.markdown('<div class="main-header">CIDPL-BHAIYALAL RESERVOIR ERP</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-header">PROJECT: CONSTRUCTION OF RAW WATER RESERVOIR, ANUPPUR (PHASE-I) | COST: 58.09 CR.</div>', unsafe_allow_html=True)
+st.markdown('<div class="main-header">CIDPL RESERVOIR ERP & DPR SYSTEM</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-header">PROJECT: Raw Water Reservoir, ANUPPUR | UPDATED DPR: 05.04.2026</div>', unsafe_allow_html=True)
 
 # ---------------- SIDEBAR ----------------
 with st.sidebar:
     st.header("🏢 Project Overview")
     status_df = calculate_boq_status()
     total_progress = status_df["% Complete"].mean()
-    st.metric("Overall Project Progress", f"{total_progress:.2f} %")
+    st.metric("Avg. Project Progress", f"{total_progress:.2f} %")
     
     diesel_st = calculate_diesel_stock()
     st.metric("Current HSD Stock", f"{diesel_st:,.2f} L")
     
     st.write("---")
-    st.markdown("<b>🤖 CIDPL Assistant</b><br>Type: 'Stripping done 5000' or 'EX KOBELCO fill 200'", unsafe_allow_html=True)
-    ai_in = st.text_input("Smart Entry (AI)", placeholder="Quick log here...")
+    st.header("👷 Manpower Today")
+    mp = st.session_state.manpower_log[-1] if st.session_state.manpower_log else {}
+    if mp:
+        st.write(f"Staff: **{mp['Staff']}** | Operators: **{mp['Operators']}**")
+        st.write(f"Skilled: **{mp['Skilled']}** | Labor: **{mp['Unskilled']}**")
     
     st.write("---")
-    if st.button("📥 Export Full ERP Report"):
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            status_df.to_excel(writer, sheet_name='BOQ_Status', index=False)
-            pd.DataFrame(st.session_state.boq_progress).to_excel(writer, sheet_name='BOQ_History', index=False)
-            pd.DataFrame(st.session_state.consumption_log).to_excel(writer, sheet_name='Diesel_Log', index=False)
-        st.download_button(label="💾 Download Final Excel", data=output.getvalue(), file_name=f"ANUPPUR_RESERVOIR_ERP_{datetime.now().strftime('%Y%m%d')}.xlsx")
+    if st.button("📥 Export Final DPR Report"):
+        data_list = [status_df, pd.DataFrame(st.session_state.boq_progress), pd.DataFrame(st.session_state.manpower_log), pd.DataFrame(st.session_state.site_snapshot)]
+        sheet_names = ['BOQ_Status', 'Daily_Progress', 'Manpower_Log', 'Machinery_Count']
+        data_xl = to_excel(data_list, sheet_names)
+        st.download_button(label="💾 Download DPR", data=data_xl, file_name=f"DPR_ANUPPUR_{datetime.now().strftime('%Y%m%d')}.xlsx")
 
 # ---------------- TABS ----------------
-tab1, tab2, tab3, tab4 = st.tabs(["📊 Dashboard", "🚧 BOQ Progress", "🚜 Diesel & Machine", "🛠️ Master Setup"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 Dashboard", "🚧 Work Progress", "👷 Manpower", "🚜 Diesel & Machine", "🛠️ Database"])
 
 # --- TAB 1: DASHBOARD ---
 with tab1:
     st.subheader("Bill of Quantities (BOQ) Summary Status")
     st.dataframe(status_df, use_container_width=True, hide_index=True)
     
-    # Progress Chart (Simple)
-    st.write("---")
-    st.subheader("Physical Progress Tracking")
-    st.bar_chart(status_df.set_index("Item")["% Complete"])
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader("Physical Progress (%)")
+        st.bar_chart(status_df.set_index("Item")["% Complete"])
+    with col2:
+        st.subheader("Machinery on Site (Latest)")
+        if st.session_state.site_snapshot:
+            snap = st.session_state.site_snapshot[-1]
+            st.json(snap)
 
 # --- TAB 2: BOQ PROGRESS LOG ---
 with tab2:
-    st.subheader("Add Daily Work Progress")
+    st.subheader("Log Daily Work Progress")
     col1, col2, col3 = st.columns(3)
     with col1:
         p_date = st.date_input("Work Date", datetime.now())
         p_item = st.selectbox("Select BOQ Item", st.session_state.boq_master["Item"].tolist())
     with col2:
         p_code = st.session_state.boq_master[st.session_state.boq_master["Item"] == p_item]["Code"].values[0]
-        p_qty = st.number_input(f"Quantity Done ({st.session_state.boq_master[st.session_state.boq_master['Item'] == p_item]['UoM'].values[0]})", min_value=0.0)
+        p_qty = st.number_input(f"Today's Quantity", min_value=0.0)
     with col3:
-        p_rem = st.text_input("Progress Remarks", placeholder="Section A / North Face")
+        p_rem = st.text_input("Remarks", placeholder="e.g., North Slope")
 
     if st.button("➕ Save Work Entry", type="primary", use_container_width=True):
         entry = {"Date": p_date.strftime("%Y-%m-%d"), "Code": p_code, "Item": p_item, "Done Qty": p_qty, "Remark": p_rem}
         st.session_state.boq_progress.append(entry)
-        st.success(f"Progress recorded for {p_item}!"); st.rerun()
+        st.success(f"Log Saved for {p_item}!"); st.rerun()
 
-# --- TAB 3: DIESEL & MACHINE ---
+# --- TAB 3: MANPOWER ---
 with tab3:
-    st.subheader("HSD Management (Anuppur Project)")
-    d_tab1, d_tab2 = st.tabs(["Issue Log", "Stock Receipt"])
+    st.subheader("Log Daily Manpower Deployment")
+    m1, m2, m3 = st.columns(3)
+    with m1:
+        m_date = st.date_input("Report Date", datetime.now(), key="mp_date")
+        m_staff = st.number_input("Staff (Engr. & Sup.)", value=15)
+    with m2:
+        m_ops = st.number_input("Operators/Drivers", value=20)
+        m_skilled = st.number_input("Skilled Labor", value=2)
+    with m3:
+        m_unskilled = st.number_input("Unskilled Labor", value=4)
+        m_sec = st.number_input("Security", value=2)
+
+    if st.button("➕ Save Manpower Log", use_container_width=True):
+        st.session_state.manpower_log.append({
+            "Date": m_date.strftime("%Y-%m-%d"), "Staff": m_staff, "Operators": m_ops, 
+            "Skilled": m_skilled, "Unskilled": m_unskilled, "Security": m_sec
+        })
+        st.success("Manpower Data Logged!"); st.rerun()
     
-    with d_tab1:
+    st.write("---")
+    st.write("**Recent Manpower History**")
+    st.dataframe(pd.DataFrame(st.session_state.manpower_log).tail(10), use_container_width=True)
+
+# --- TAB 4: DIESEL & MACHINE ---
+with tab4:
+    st.subheader("HSD Management & Machinery Snapshot")
+    h1, h2 = st.tabs(["Diesel Issue", "Machinery Count"])
+    
+    with h1:
         c1, c2, c3 = st.columns(3)
         with c1:
             dm_machine = st.selectbox("Machine NO", st.session_state.machine_master["MACHINE NO"].tolist())
@@ -168,27 +223,37 @@ with tab3:
             })
             st.success("Diesel Log Saved!"); st.rerun()
 
-# --- TAB 4: MASTER SETUP ---
-with tab4:
-    st.subheader("🛠️ Database Setup")
-    m_tab1, m_tab2 = st.tabs(["BOQ Master", "Machine Master"])
-    
-    with m_tab1:
-        st.write("Edit the 58.09 Cr. BOQ List below:")
-        edited_boq = st.data_editor(st.session_state.boq_master, use_container_width=True, num_rows="dynamic")
-        if st.button("💾 Update BOQ"):
-            st.session_state.boq_master = edited_boq; st.success("BOQ Database Updated!")
+    with h2:
+        st.write("Update Machinery Deployment Count on Site")
+        s1, s2, s3 = st.columns(3)
+        with s1:
+            s_ex = st.number_input("Excavators", 6); s_dum = st.number_input("Dumpers", 20)
+        with s2:
+            s_rr = st.number_input("Road Rollers", 2); s_dt = st.number_input("Diesel Tanker", 1)
+        with s3:
+            s_wt = st.number_input("Water Tanker", 4); s_dg = st.number_input("DG Sets", 1)
+        
+        if st.button("📸 Update Snapshot"):
+            st.session_state.site_snapshot.append({
+                "Date": datetime.now().strftime("%Y-%m-%d"), "Excavator": s_ex, "Dumper": s_dum, 
+                "Road Roller": s_rr, "Diesel Tanker": s_dt, "Water Tanker": s_wt, "DG": s_dg
+            })
+            st.success("Snapshot Updated!"); st.rerun()
 
-    with m_tab2:
-        edited_mm = st.data_editor(st.session_state.machine_master, use_container_width=True, num_rows="dynamic")
-        if st.button("💾 Update Machines"):
-            st.session_state.machine_master = edited_mm; st.success("Machine List Updated!")
+# --- TAB 5: DATABASE ---
+with tab5:
+    st.subheader("🛠️ System Data Control")
+    d1, d2 = st.tabs(["BOQ Master", "Machine Master"])
+    with d1:
+        st.data_editor(st.session_state.boq_master, use_container_width=True, num_rows="dynamic")
+    with d2:
+        st.data_editor(st.session_state.machine_master, use_container_width=True, num_rows="dynamic")
 
 # ---------------- FOOTER ----------------
 st.markdown(f"""
     <div class="footer">
-        <b>CIDPL FULL PROJECT ERP v5.0</b><br>
+        <b>CIDPL SMART DPR ERP v6.0</b><br>
         Developed by: <b>Upendra Singh</b><br>
-        Anuppur Phase-I Raw Water Reservoir Project (58.09 Cr.)
+        Project: Anuppur Phase-I Reservoir | Updated: 05.04.2026
     </div>
 """, unsafe_allow_html=True)
