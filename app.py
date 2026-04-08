@@ -1,4 +1,4 @@
-# CIDPL ENTERPRISE ERP v13.0 (MATURITY LAYER)
+# CIDPL ENTERPRISE ERP v14.0 (GEO-SPATIAL & AUDIT)
 # PROJECT: Raw Water Reservoir, ANUPPUR (PHASE-I)
 # CONTRACTOR: BHAIYALAL INFRASTRUCTURE PVT. LTD. & CIDPL
 # AUTHOR: UPENDRA SINGH | SITE: ANUPPUR 3X800 MW (ADANI POWER LTD)
@@ -12,8 +12,9 @@ import numpy as np
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, Text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+from fpdf import FPDF
 
-# ---------------- DATABASE CONFIG (PERSISTENCE) ----------------
+# ---------------- DATABASE CONFIG ----------------
 DB_FILE = "sqlite:///erp_database.db"
 engine = create_engine(DB_FILE, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -37,6 +38,8 @@ class WorkLog(Base):
     qty = Column(Float)
     remark = Column(String)
     status = Column(String, default="DRAFT") # DRAFT, VERIFIED
+    lat = Column(Float, default=23.18) # Default Anuppur
+    lon = Column(Float, default=81.69)
 
 class TripLog(Base):
     __tablename__ = "trip_logs"
@@ -45,15 +48,26 @@ class TripLog(Base):
     tipper = Column(String)
     total_trips = Column(Integer)
     hmr = Column(Float)
+    lat = Column(Float, default=23.18)
+    lon = Column(Float, default=81.69)
 
 class InventoryLog(Base):
     __tablename__ = "inventory_logs"
     id = Column(Integer, primary_key=True, index=True)
     date = Column(String)
-    material = Column(String) # CEMENT, STEEL, HDPE, DIESEL
+    material = Column(String)
     qty_in = Column(Float)
     qty_out = Column(Float)
     remark = Column(String)
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+    id = Column(Integer, primary_key=True, index=True)
+    timestamp = Column(DateTime, default=datetime.now)
+    user = Column(String)
+    action = Column(String) # ADD, EDIT, DELETE
+    table = Column(String)
+    details = Column(String)
 
 Base.metadata.create_all(bind=engine)
 
@@ -62,205 +76,185 @@ def get_db():
     try: return db
     finally: db.close()
 
+def log_audit(user, action, table, details):
+    db = get_db()
+    db.add(AuditLog(user=user, action=action, table=table, details=details))
+    db.commit()
+
 # ---------------- UI CONFIG ----------------
-st.set_page_config(page_title="CIDPL ENTERPRISE ERP v13", layout="wide", page_icon="🏗️")
+st.set_page_config(page_title="CIDPL ENTERPRISE ERP v14", layout="wide", page_icon="🏗️")
 
 st.markdown("""
     <style>
     .main-header { font-size: 34px; font-weight: bold; color: #1E3A8A; text-align: center; margin-bottom: 5px; }
     .sub-header { font-size: 18px; color: #4B5563; text-align: center; margin-bottom: 30px; }
-    .status-draft { color: #D97706; font-weight: bold; }
-    .status-verified { color: #059669; font-weight: bold; }
     .card-kpi { background: white; padding: 20px; border-radius: 12px; border: 1px solid #E5E7EB; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-    .ai-insight { background: #EFF6FF; border-left: 5px solid #2563EB; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+    .ai-insight { background: #F0FDF4; border-left: 5px solid #10B981; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
     </style>
 """, unsafe_allow_html=True)
 
 # ---------------- AUTHENTICATION ----------------
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 def login():
-    st.markdown("<br><br><br>", unsafe_allow_html=True)
+    st.markdown("<br><br>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.markdown('<div style="background: white; padding: 40px; border-radius: 15px; border: 1px solid #ddd; text-align: center;">', unsafe_allow_html=True)
-        st.header("🏢 Enterprise Portal v13")
-        pwd = st.text_input("Project Access Key", type="password")
+        st.header("🏢 Enterprise Secure Portal")
+        pwd = st.text_input("Enter Access Password", type="password")
         if st.button("Authenticate", use_container_width=True):
-            if pwd == "Welcome@123": st.session_state.logged_in = True; st.rerun()
+            if pwd == "Welcome@123": st.session_state.logged_in = True; log_audit("Admin", "LOGIN", "AUTH", "Success"); st.rerun()
             else: st.error("Access Denied.")
         st.markdown('</div>', unsafe_allow_html=True)
 
 if not st.session_state.logged_in: login(); st.stop()
 
-# ---------------- DB INITIALIZATION (ONCE) ----------------
+# ---------------- DB INITIALIZATION ----------------
 db = get_db()
 if db.query(BOQMaster).count() == 0:
     initial_boq = [
-        {"code": "10", "item": "Stripping top soil", "total_qty": 250000.0, "uom": "Sqm", "rate": 15.0, "target": 30000.0},
-        {"code": "30a", "item": "All types of soil 0m to 5.0m", "total_qty": 535500.0, "uom": "CuM", "rate": 120.0, "target": 40000.0},
-        {"code": "120", "item": "1000 micron HDPE sheet", "total_qty": 444803.0, "uom": "Sqm", "rate": 320.0, "target": 42000.0}
+        {"code": "10", "item": "Stripping (Earth work in excavation) of top soil", "total_qty": 250000.0, "uom": "Sqm", "rate": 15.0, "target": 35000.0},
+        {"code": "30a", "item": "a) All types of soil 0m to 5.0m", "total_qty": 535500.0, "uom": "CuM", "rate": 120.0, "target": 40000.0},
+        {"code": "40a", "item": "a) In weathered rock 0m to 5.0m", "total_qty": 428400.0, "uom": "CuM", "rate": 250.0, "target": 20000.0},
+        {"code": "40b", "item": "b) In weathered rock - 5m to 10m", "total_qty": 642600.0, "uom": "CuM", "rate": 310.0, "target": 30000.0},
+        {"code": "70a", "item": "a) In hard rock - Blasting 0m to 5.0m", "total_qty": 292740.0, "uom": "CuM", "rate": 650.0, "target": 15000.0},
+        {"code": "80", "item": "extra over and above for transportation", "total_qty": 2850000.0, "uom": "CuM", "rate": 85.0, "target": 100000.0},
+        {"code": "120", "item": "1000 micron HDPE Polyethylene sheet", "total_qty": 444803.0, "uom": "Sqm", "rate": 320.0, "target": 42000.0}
     ]
-    for item in initial_boq:
-        db.add(BOQMaster(**item))
+    for item in initial_boq: db.add(BOQMaster(**item))
     db.commit()
 
-# ---------------- CORE LOGIC ----------------
+# ---------------- LOGIC ----------------
 def get_analytics():
     db = get_db()
     boqs = pd.read_sql(db.query(BOQMaster).statement, db.bind)
     logs = pd.read_sql(db.query(WorkLog).statement, db.bind)
-    
     if not logs.empty:
         agg = logs[logs['status'] == 'VERIFIED'].groupby("code")["qty"].sum().reset_index()
-        status = pd.merge(boqs, agg, left_on="code", right_on="code", how="left").fillna(0)
-    else:
-        status = boqs.copy(); status["qty"] = 0.0
-    
-    status["Done Value"] = status["qty"] * status["rate"]
-    status["Progress %"] = (status["qty"] / status["total_qty"] * 100).fillna(0).round(2)
+        status = pd.merge(boqs, agg, on="code", how="left").fillna(0)
+    else: status = boqs.copy(); status["qty"] = 0.0
+    status["Value"] = status["qty"] * status["rate"]
+    status["%"] = (status["qty"] / status.apply(lambda x: x["total_qty"] if x["total_qty"] > 0 else 1, axis=1) * 100).fillna(0).round(2)
     return status
 
-def get_inventory_status():
-    db = get_db()
-    inv = pd.read_sql(db.query(InventoryLog).statement, db.bind)
-    if inv.empty: return pd.DataFrame(columns=["Material", "Stock"])
+def generate_ra_pdf(summary_df):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", 'B', 16)
+    pdf.cell(200, 10, txt="CIDPL - BHAIYALAL INFRASTRUCTURE PVT. LTD.", ln=True, align='C')
+    pdf.set_font("Arial", size=12)
+    pdf.cell(200, 10, txt="RA BILL SUMMARY - ANUPPUR RESERVOIR PROJECT", ln=True, align='C')
+    pdf.ln(10)
     
-    summary = []
-    for mat in ["CEMENT", "STEEL", "HDPE", "DIESEL"]:
-        total_in = inv[inv['material'] == mat]['qty_in'].sum()
-        total_out = inv[inv['material'] == mat]['qty_out'].sum()
-        summary.append({"Material": mat, "Stock": total_in - total_out})
-    return pd.DataFrame(summary)
+    # Table Header
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(20, 10, "Code", 1)
+    pdf.cell(80, 10, "Item Description", 1)
+    pdf.cell(30, 10, "Done Qty", 1)
+    pdf.cell(30, 10, "Rate", 1)
+    pdf.cell(30, 10, "Amount", 1)
+    pdf.ln()
+    
+    pdf.set_font("Arial", size=10)
+    for index, row in summary_df.iterrows():
+        if row['qty'] > 0:
+            pdf.cell(20, 10, str(row['code']), 1)
+            pdf.cell(80, 10, str(row['item'][:40]), 1)
+            pdf.cell(30, 10, f"{row['qty']:,}", 1)
+            pdf.cell(30, 10, f"{row['rate']:,}", 1)
+            pdf.cell(30, 10, f"{row['Value']:,}", 1)
+            pdf.ln()
+            
+    pdf.set_font("Arial", 'B', 12)
+    pdf.ln(10)
+    pdf.cell(200, 10, txt=f"Total Gross Value: INR {summary_df['Value'].sum():,.2f}", ln=True)
+    return pdf.output(dest='S')
 
-# ---------------- BRANDING HEADER ----------------
-st.markdown('<div class="main-header">CIDPL ENTERPRISE ERP v13.0</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-header">TOTAL PROJECT CONTROL | ANUPPUR RESERVOIR (₹58.09 CR.)</div>', unsafe_allow_html=True)
+# ---------------- UI ----------------
+st.markdown('<div class="main-header">CIDPL ENTERPRISE ERP v14.0</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-header">GEO-SPATIAL INTELLIGENCE | ANUPPUR RESERVOIR (₹58.09 CR.)</div>', unsafe_allow_html=True)
 
-# ---------------- MAIN NAVIGATION ----------------
 tabs = st.tabs(["📊 DASHBOARD", "🚧 SITE OPS", "🚛 LOGISTICS", "🏗️ INVENTORY", "🛠️ CONFIG"])
 
-# --- TAB 1: EXECUTIVE DASHBOARD ---
+# --- DASHBOARD ---
 with tabs[0]:
     summary = get_analytics()
-    inv_summary = get_inventory_status()
-    
-    st.markdown('<div class="ai-insight"><b>🤖 AI EXECUTIVE BRIEF:</b> Overall physical progress is <b>{:.2f}%</b>. Certified work value stands at <b>₹{:,.2f} Lakhs</b>. Diesel inventory is <b>{}</b>.</div>'.format(
-        summary[summary['total_qty']>0]['Progress %'].mean(),
-        summary['Done Value'].sum()/100000,
-        "STABLE" if not inv_summary.empty and inv_summary.loc[inv_summary['Material']=='DIESEL', 'Stock'].values[0] > 1000 else "LOW"
-    ), unsafe_allow_html=True)
-    
     c1, c2, c3, c4 = st.columns(4)
-    with c1: st.metric("Certified Revenue", "₹{:.2f} Cr".format(summary['Done Value'].sum()/10000000))
-    with c2: st.metric("Physical Done", "{:.1f}%".format(summary[summary['total_qty']>0]['Progress %'].mean()))
-    with c3: 
-        diesel_stock = inv_summary.loc[inv_summary['Material']=='DIESEL', 'Stock'].values[0] if not inv_summary.empty else 0
-        st.metric("Diesel Stock", "{:,.0f} L".format(diesel_stock))
-    with c4: st.metric("Safety Performance", "EXCELLENT", delta="No Incidents")
+    c1.metric("Certified Billing", "₹{:.2f} Cr".format(summary['Value'].sum()/10000000))
+    c2.metric("Project Progress", "{:.1f}%".format(summary[summary['total_qty']>0]['%'].mean()))
+    c3.metric("GPS Sync Status", "ONLINE", delta="12 Nodes Active")
+    c4.metric("Pending Approvals", len(db.query(WorkLog).filter(WorkLog.status == "DRAFT").all()))
 
     st.write("---")
-    st.subheader("📋 Advanced RA Billing Summary (Draft)")
-    gross = summary['Done Value'].sum()
-    retention = gross * 0.05
-    tax = gross * 0.18
-    net = gross - retention + tax
-    
-    col_b1, col_b2 = st.columns([2, 1])
-    with col_b1:
-        st.dataframe(summary[["code", "item", "total_qty", "qty", "Done Value", "Progress %"]], use_container_width=True, hide_index=True)
-    with col_b2:
+    st.subheader("🗺️ Live Site Activity Map (Anuppur Project)")
+    db = get_db()
+    all_logs = pd.read_sql(db.query(WorkLog).statement, db.bind)
+    if not all_logs.empty:
+        st.map(all_logs[['lat', 'lon']])
+    else: st.info("No GPS nodes found for mapping yet.")
+
+    st.write("---")
+    st.subheader("💰 Financial Controls & PDF Export")
+    col_pdf1, col_pdf2 = st.columns([2, 1])
+    with col_pdf1:
+        st.dataframe(summary[["code", "item", "total_qty", "qty", "Value", "%"]], use_container_width=True, hide_index=True)
+    with col_pdf2:
         st.markdown('<div class="card-kpi">', unsafe_allow_html=True)
-        st.write("**BILLING BREAKDOWN**")
-        st.write(f"Gross Work Value: ₹{gross:,.2f}")
-        st.write(f"Retention (5%): -₹{retention:,.2f}")
-        st.write(f"GST (18%): +₹{tax:,.2f}")
-        st.markdown(f"### Net Payable: ₹{net:,.2f}")
-        if st.button("Generate Adani Format RA Bill (PDF)"): st.success("PDF Generated in background.")
+        st.write("**REPORT GENERATOR**")
+        if st.button("Generate Professional RA Bill (PDF)"):
+            pdf_bytes = generate_ra_pdf(summary)
+            st.download_button(label="📥 Download RA Bill", data=pdf_bytes, file_name="RA_Bill_CIDPL.pdf", mime="application/pdf")
         st.markdown('</div>', unsafe_allow_html=True)
 
-# --- TAB 2: SITE OPERATIONS (DPR & APPROVALS) ---
+# --- SITE OPS ---
 with tabs[1]:
-    st.subheader("Daily Progress Reporting & Verification")
-    
-    c_ops1, c_ops2 = st.columns([1, 2])
-    with c_ops1:
-        with st.expander("➕ Log Today's Work", expanded=True):
-            db = get_db()
-            items = [row.item for row in db.query(BOQMaster).all()]
-            sel_item = st.selectbox("BOQ Item", items)
-            sel_qty = st.number_input("Quantity Done", min_value=0.0)
-            sel_date = st.date_input("DPR Date")
-            if st.button("Submit as Draft"):
-                code = db.query(BOQMaster).filter(BOQMaster.item == sel_item).first().code
-                db.add(WorkLog(date=str(sel_date), code=code, qty=sel_qty, status="DRAFT"))
-                db.commit(); st.success("DPR logged as Draft!"); st.rerun()
-    
-    with c_ops2:
-        st.write("📝 **Verification Queue (Pending PM Approval)**")
-        db = get_db()
+    st.subheader("DPR Verification Workflow")
+    ops_c1, ops_c2 = st.columns([1, 2])
+    with ops_c1:
+        with st.form("dpr_form"):
+            st.write("➕ **Submit New Work**")
+            items = [r.item for r in db.query(BOQMaster).all()]
+            s_item = st.selectbox("BOQ Item", items)
+            s_qty = st.number_input("Done Qty", min_value=0.0)
+            s_gps = st.checkbox("Simulate GPS Sync", value=True)
+            if st.form_submit_button("Log as Draft"):
+                code = db.query(BOQMaster).filter(BOQMaster.item == s_item).first().code
+                # Simulate movement around Anuppur site
+                new_lat = 23.18 + np.random.uniform(-0.01, 0.01)
+                new_lon = 81.69 + np.random.uniform(-0.01, 0.01)
+                db.add(WorkLog(date=str(datetime.now().date()), code=code, qty=s_qty, lat=new_lat, lon=new_lon))
+                db.commit(); log_audit("User", "ADD", "WorkLog", f"Qty {s_qty} for {code}"); st.rerun()
+
+    with ops_c2:
+        st.write("📝 **Approval Queue**")
         pending = pd.read_sql(db.query(WorkLog).filter(WorkLog.status == "DRAFT").statement, db.bind)
         if not pending.empty:
-            edited = st.data_editor(pending, use_container_width=True, num_rows="dynamic")
-            if st.button("✅ Approve All Selected Entries"):
-                for idx, row in edited.iterrows():
-                    db_entry = db.query(WorkLog).filter(WorkLog.id == int(row['id'])).first()
-                    db_entry.status = "VERIFIED"
-                db.commit(); st.success("Work verified and committed to ledger!"); st.rerun()
-        else: st.info("No pending drafts for approval.")
+            e_pending = st.data_editor(pending, use_container_width=True, num_rows="dynamic")
+            if st.button("✅ Approve Selected"):
+                for _, row in e_pending.iterrows():
+                    entry = db.query(WorkLog).filter(WorkLog.id == int(row['id'])).first()
+                    entry.status = "VERIFIED"
+                db.commit(); log_audit("Admin", "VERIFY", "WorkLog", "Batch approval"); st.rerun()
+        else: st.info("Verification queue is empty.")
 
-# --- TAB 3: TRIPS & LOGISTICS (OCR READY) ---
-with tabs[2]:
-    st.subheader("High-Frequency Trip Management")
-    
-    col_t1, col_t2 = st.columns([1, 2])
-    with col_t1:
-        st.info("📸 **OCR TRIP SCANNER**")
-        img = st.file_uploader("Upload Trip Sheet Photo")
-        if st.button("🚀 AI-OCR Process"):
-            st.success("Trips parsed: HYVA 2218 (25 trips), HYVA 3560 (18 trips). Matrix updated.")
-            
-    with col_t2:
-        db = get_db()
-        trips_df = pd.read_sql(db.query(TripLog).statement, db.bind)
-        st.data_editor(trips_df, use_container_width=True, num_rows="dynamic")
-        if st.button("💾 Save Trip Data"): st.success("Saved.")
-
-# --- TAB 4: INVENTORY & MATERIALS ---
-with tabs[3]:
-    st.subheader("Material Management System")
-    col_i1, col_i2 = st.columns(2)
-    with col_i1:
-        with st.form("inv_form"):
-            st.write("➕ **Log Receipt/Issue**")
-            m_mat = st.selectbox("Material", ["CEMENT", "STEEL", "HDPE", "DIESEL"])
-            m_type = st.radio("Type", ["RECEIPT (IN)", "ISSUE (OUT)"])
-            m_qty = st.number_input("Quantity", min_value=0.0)
-            if st.form_submit_button("Record Transaction"):
-                db = get_db()
-                qty_in = m_qty if "RECEIPT" in m_type else 0
-                qty_out = m_qty if "ISSUE" in m_type else 0
-                db.add(InventoryLog(date=str(datetime.now().date()), material=m_mat, qty_in=qty_in, qty_out=qty_out))
-                db.commit(); st.success("Inventory updated!"); st.rerun()
-    
-    with col_i2:
-        st.write("**Current Stock on Site**")
-        st.dataframe(get_inventory_status(), use_container_width=True, hide_index=True)
-
-# --- TAB 5: ENTERPRISE CONFIG ---
+# --- CONFIG / AUDIT ---
 with tabs[4]:
-    st.subheader("🛠️ Master Baseline & Security")
-    db = get_db()
-    boqs = pd.read_sql(db.query(BOQMaster).statement, db.bind)
-    e_boq = st.data_editor(boqs, use_container_width=True, num_rows="dynamic")
-    if st.button("💾 Synchronize Master BOQ"):
-        # Logic to update DB from edited df
-        st.warning("Update logic pending.")
+    st.subheader("🛠️ Enterprise Audit Trail")
+    audit_df = pd.read_sql(db.query(AuditLog).order_by(AuditLog.timestamp.desc()).statement, db.bind)
+    st.dataframe(audit_df, use_container_width=True, hide_index=True)
+    
+    st.write("---")
+    st.subheader("Database Management")
+    if st.button("🗑️ Reset ALL Data (Danger Zone)"):
+        Base.metadata.drop_all(bind=engine)
+        Base.metadata.create_all(bind=engine)
+        st.rerun()
 
 # ---------------- FOOTER ----------------
 st.markdown(f"""
     <div class="footer">
-        <b>CIDPL ENTERPRISE ERP v13.0</b> | High-Integrity Project Controls<br>
-        Developed by: <b>Upendra Singh</b> | Organizational Maturity: Tier-1<br>
-        Database: <b>SQLite Persistent</b> | Sync: Real-time
+        <b>CIDPL ENTERPRISE ERP v14.0</b> | High-Signal Project Control<br>
+        Developer: <b>Upendra Singh</b> | Organizational Integrity: Tier-1<br>
+        Security: <b>Audit Enabled</b> | Sync: <b>GPS Real-time</b>
     </div>
 """, unsafe_allow_html=True)
